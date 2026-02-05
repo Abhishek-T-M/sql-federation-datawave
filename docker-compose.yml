@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: datawave-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: logistics
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - datawave-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql:
+    image: mysql:8.0
+    container_name: datawave-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql123
+      MYSQL_DATABASE: supply_chain
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - mysql-data:/var/lib/mysql
+    networks:
+      - datawave-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: datawave-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - datawave-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  trino:
+    image: trinodb/trino:latest
+    container_name: datawave-trino
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog
+    networks:
+      - datawave-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/v1/info || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: datawave-metabase
+    environment:
+      MB_DB_TYPE: h2
+      MB_DB_FILE: /metabase-data/metabase.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase-data:/metabase-data
+    networks:
+      - datawave-network
+    depends_on:
+      - trino
+      - postgres
+      - mysql
+
+networks:
+  datawave-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mysql-data:
+  minio-data:
+  metabase-data:

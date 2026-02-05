@@ -1,0 +1,19 @@
+# Data directories
+minio/data/*
+logs/*
+*.log
+
+# Docker volumes
+postgres-data/
+mysql-data/
+minio-data/
+metabase-data/
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
